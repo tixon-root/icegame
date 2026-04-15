@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Pixel Battle — ICECOIN</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Exo+2:wght@300;400;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --dark:#03080f; --dark2:#071422; --ice:#a8edff; --ice2:#5dd6f7;
+  --ice-deep:#0e9ec2; --border:rgba(168,237,255,0.18); --text:#c8eeff;
+  --muted:#5a8aaa; --purple:#b06cff; --success:#43ffb4; --danger:#ff4d6d;
+  --glow:0 0 20px rgba(93,214,247,0.35);
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--dark);font-family:'Exo 2',sans-serif;color:var(--text);user-select:none;}
+
+/* HEADER */
+.header{
+  position:fixed;top:0;left:0;right:0;z-index:100;
+  height:52px;
+  background:rgba(3,8,15,0.96);
+  border-bottom:1px solid var(--border);
+  backdrop-filter:blur(16px);
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 14px;
+}
+.header-title{font-family:'Orbitron',monospace;font-size:14px;font-weight:900;color:var(--purple);text-shadow:0 0 12px var(--purple);letter-spacing:1px;}
+.header-cd{font-family:'Orbitron',monospace;font-size:12px;color:var(--ice2);}
+.header-cd.waiting{color:var(--danger);}
+
+/* CANVAS WRAPPER */
+.canvas-wrap{
+  position:fixed;
+  top:52px;left:0;right:0;
+  bottom:130px;
+  overflow:hidden;
+  background:#111;
+  cursor:crosshair;
+}
+#pixel-canvas{
+  position:absolute;
+  image-rendering:pixelated;
+  image-rendering:crisp-edges;
+  transform-origin:0 0;
+}
+
+/* MINIMAP */
+.minimap-wrap{
+  position:fixed;
+  top:62px;right:10px;
+  width:80px;height:80px;
+  border:1px solid var(--border);
+  border-radius:8px;
+  overflow:hidden;
+  background:#111;
+  z-index:50;
+  opacity:.85;
+}
+#minimap-canvas{width:80px;height:80px;image-rendering:pixelated;}
+.minimap-viewport{
+  position:absolute;top:0;left:0;
+  border:1.5px solid var(--ice2);
+  box-shadow:0 0 6px var(--ice2);
+  pointer-events:none;
+  border-radius:2px;
+}
+
+/* PIXEL INFO POPUP */
+.pixel-info{
+  position:fixed;
+  top:62px;left:10px;
+  background:rgba(7,20,34,0.96);
+  border:1px solid var(--border);
+  border-radius:12px;
+  padding:10px 12px;
+  font-size:11px;
+  z-index:50;
+  max-width:160px;
+  display:none;
+  backdrop-filter:blur(8px);
+}
+.pixel-info.show{display:block;}
+.pixel-info-color{width:20px;height:20px;border-radius:4px;border:1px solid rgba(255,255,255,.2);display:inline-block;vertical-align:middle;margin-right:6px;}
+.pixel-info-user{color:var(--ice);font-weight:600;margin-bottom:3px;}
+.pixel-info-date{color:var(--muted);}
+.pixel-info-coords{color:var(--muted);font-size:10px;margin-top:2px;}
+
+/* BOTTOM PANEL */
+.bottom-panel{
+  position:fixed;bottom:0;left:0;right:0;
+  background:rgba(3,8,15,0.97);
+  border-top:1px solid var(--border);
+  backdrop-filter:blur(16px);
+  padding:10px 14px 14px;
+  z-index:100;
+  padding-bottom:calc(14px + env(safe-area-inset-bottom));
+}
+
+.color-section-label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;}
+
+/* COLOR PALETTE */
+.palette-scroll{overflow-x:auto;padding-bottom:4px;}
+.palette-scroll::-webkit-scrollbar{height:3px;}
+.palette-scroll::-webkit-scrollbar-track{background:rgba(168,237,255,.05);}
+.palette-scroll::-webkit-scrollbar-thumb{background:var(--ice2);border-radius:10px;}
+.palette{display:flex;gap:6px;width:max-content;}
+.color-group{display:flex;gap:4px;padding-right:8px;border-right:1px solid rgba(168,237,255,.1);}
+.color-group:last-child{border-right:none;}
+.color-swatch{
+  width:26px;height:26px;border-radius:6px;
+  border:2px solid transparent;
+  cursor:pointer;transition:transform .12s,border-color .12s;
+  flex-shrink:0;
+}
+.color-swatch:active{transform:scale(.88);}
+.color-swatch.selected{border-color:#fff;box-shadow:0 0 8px rgba(255,255,255,.5);transform:scale(1.15);}
+
+/* CUSTOM COLOR */
+.custom-color-wrap{display:flex;align-items:center;gap:8px;margin-top:8px;}
+.custom-label{font-size:10px;color:var(--muted);}
+#custom-color{width:36px;height:28px;border:1px solid var(--border);border-radius:8px;background:none;cursor:pointer;padding:2px;}
+.selected-preview{display:flex;align-items:center;gap:6px;margin-left:auto;}
+.selected-box{width:28px;height:28px;border-radius:6px;border:2px solid rgba(255,255,255,.3);}
+.selected-hex{font-family:monospace;font-size:11px;color:var(--ice2);}
+
+/* PLACE BTN */
+.place-btn{
+  width:100%;margin-top:8px;padding:10px;
+  background:linear-gradient(135deg,#7b2fff,var(--purple));
+  border:none;border-radius:12px;
+  font-family:'Orbitron',monospace;font-size:12px;font-weight:700;
+  color:#fff;cursor:pointer;letter-spacing:1px;
+  box-shadow:0 4px 16px rgba(176,108,255,0.4);
+  transition:transform .15s,opacity .15s;
+}
+.place-btn:active{transform:scale(.97);}
+.place-btn:disabled{opacity:.4;cursor:not-allowed;}
+
+/* TOAST */
+.toast{position:fixed;top:62px;left:50%;transform:translateX(-50%) translateY(-80px);background:rgba(10,30,55,.97);border:1px solid var(--border);border-radius:12px;padding:8px 18px;font-family:'Orbitron',monospace;font-size:11px;color:var(--ice);white-space:nowrap;z-index:999;transition:transform .3s ease;box-shadow:var(--glow);}
+.toast.show{transform:translateX(-50%) translateY(0);}
+.toast.ok{color:var(--success);border-color:rgba(67,255,180,.3);}
+.toast.err{color:var(--danger);border-color:rgba(255,77,109,.3);}
+
+/* SPLASH */
+.splash{position:fixed;inset:0;z-index:500;background:var(--dark);display:flex;flex-direction:column;align-items:center;justify-content:center;transition:opacity .5s ease;}
+.splash.gone{opacity:0;pointer-events:none;}
+.splash-logo{font-size:56px;animation:sp 1.5s ease-in-out infinite;}
+@keyframes sp{0%,100%{filter:drop-shadow(0 0 8px var(--purple))}50%{transform:scale(1.1);filter:drop-shadow(0 0 24px var(--purple));}}
+.splash-title{font-family:'Orbitron',monospace;font-size:22px;font-weight:900;color:var(--purple);margin-top:14px;letter-spacing:2px;}
+.splash-sub{font-size:11px;color:var(--muted);margin-top:6px;}
+.splash-bar-wrap{width:140px;height:3px;background:rgba(176,108,255,0.1);border-radius:10px;margin-top:28px;overflow:hidden;}
+.splash-bar{height:100%;background:var(--purple);box-shadow:0 0 8px var(--purple);animation:sl 2s ease forwards;}
+@keyframes sl{from{width:0}to{width:100%}}
+</style>
+</head>
+<body>
+
+<div class="splash" id="splash">
+  <div class="splash-logo">🎨</div>
+  <div class="splash-title">PIXEL BATTLE</div>
+  <div class="splash-sub">Загрузка карты...</div>
+  <div class="splash-bar-wrap"><div class="splash-bar"></div></div>
+</div>
+
+<div class="header">
+  <div class="header-title">🎨 PIXEL BATTLE</div>
+  <div class="header-cd" id="header-cd">⏳ загрузка...</div>
+</div>
+
+<div class="canvas-wrap" id="canvas-wrap">
+  <canvas id="pixel-canvas"></canvas>
+</div>
+
+<div class="minimap-wrap">
+  <canvas id="minimap-canvas" width="80" height="80"></canvas>
+  <div class="minimap-viewport" id="minimap-vp"></div>
+</div>
+
+<div class="pixel-info" id="pixel-info">
+  <div style="display:flex;align-items:center;margin-bottom:4px;">
+    <span class="pixel-info-color" id="pi-color"></span>
+    <span class="pixel-info-user" id="pi-user">—</span>
+  </div>
+  <div class="pixel-info-date" id="pi-date">—</div>
+  <div class="pixel-info-coords" id="pi-coords"></div>
+</div>
+
+<div class="bottom-panel">
+  <div class="color-section-label">Выберите цвет</div>
+  <div class="palette-scroll">
+    <div class="palette" id="palette"></div>
+  </div>
+  <div class="custom-color-wrap">
+    <span class="custom-label">Свой цвет:</span>
+    <input type="color" id="custom-color" value="#5dd6f7" oninput="pickCustomColor(this.value)">
+    <div class="selected-preview">
+      <div class="selected-box" id="selected-box" style="background:#5dd6f7;"></div>
+      <span class="selected-hex" id="selected-hex">#5dd6f7</span>
+    </div>
+  </div>
+  <button class="place-btn" id="place-btn" onclick="placePixel()">🎨 ПОСТАВИТЬ ПИКСЕЛЬ</button>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ══════════════════════════════════════════════════════
+// CONFIG
+// ══════════════════════════════════════════════════════
+const API_BASE   = "https://icefarm-1.onrender.com";
+const GRID_W     = 500;   // реальная сетка 500×500 = визуально 500px на пиксель
+const GRID_H     = 500;
+const PIXEL_SIZE = 12;    // размер одного пикселя в px при 100% зуме
+const PIXEL_CD   = 600;   // 10 минут в секундах
+
+const tg = window.Telegram?.WebApp;
+if(tg){tg.ready();tg.expand();tg.setHeaderColor('#03080f');tg.setBackgroundColor('#03080f');}
+const INIT_DATA = tg?.initData || "";
+
+// ══════════════════════════════════════════════════════
+// PALETTE — 120+ цветов
+// ══════════════════════════════════════════════════════
+const COLOR_GROUPS = [
+  // Whites & Grays
+  ["#ffffff","#f0f0f0","#d0d0d0","#a0a0a0","#707070","#404040","#202020","#000000"],
+  // Reds
+  ["#ff0000","#cc0000","#990000","#ff4444","#ff8888","#ffbbbb","#ff6b6b","#c0392b"],
+  // Oranges
+  ["#ff6600","#ff8800","#ffaa00","#ffcc00","#ff9944","#ffbb66","#e67e22","#d35400"],
+  // Yellows
+  ["#ffff00","#ffee00","#ffdd00","#ffe066","#fff3a3","#f9ca24","#f0932b","#ffd32a"],
+  // Greens
+  ["#00ff00","#00cc00","#009900","#006600","#44ff44","#88ff88","#00b894","#00cec9"],
+  // Cyans
+  ["#00ffff","#00cccc","#009999","#44ffff","#88ffff","#5dd6f7","#a8edff","#0e9ec2"],
+  // Blues
+  ["#0000ff","#0000cc","#000099","#4444ff","#8888ff","#bbbbff","#2980b9","#1a73e8"],
+  // Purples
+  ["#8800ff","#aa00ff","#cc44ff","#ee88ff","#b06cff","#9b59b6","#6c3483","#d7bde2"],
+  // Pinks
+  ["#ff00ff","#ff44ff","#ff88ff","#ffbbff","#ff69b4","#ff1493","#e91e8c","#f8bbd9"],
+  // Browns
+  ["#8b4513","#a0522d","#cd853f","#deb887","#d2691e","#795548","#5d4037","#3e2723"],
+  // Special
+  ["#ff4d6d","#43ffb4","#ffd060","#ff6b35","#2ecc71","#e74c3c","#3498db","#9b59b6"],
+];
+
+// ══════════════════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════════════════
+let selectedColor = "#5dd6f7";
+let pixelData = {};       // key "x,y" → {color, username, first_name, placed_at}
+let cooldownSec = 0;
+let cdInterval = null;
+let selectedCell = null;  // {x, y}
+
+// Pan & Zoom
+let scale = 1.5;
+let offsetX = 0, offsetY = 0;
+let isDragging = false, lastX = 0, lastY = 0, dragMoved = false;
+
+const canvas = document.getElementById('pixel-canvas');
+const ctx = canvas.getContext('2d');
+const miniCanvas = document.getElementById('minimap-canvas');
+const miniCtx = miniCanvas.getContext('2d');
+
+// ══════════════════════════════════════════════════════
+// INIT CANVAS
+// ══════════════════════════════════════════════════════
+function initCanvas(){
+  canvas.width  = GRID_W * PIXEL_SIZE;
+  canvas.height = GRID_H * PIXEL_SIZE;
+  canvas.style.width  = canvas.width  + 'px';
+  canvas.style.height = canvas.height + 'px';
+
+  // Center
+  const wrap = document.getElementById('canvas-wrap');
+  offsetX = (wrap.clientWidth  - canvas.width  * scale) / 2;
+  offsetY = (wrap.clientHeight - canvas.height * scale) / 2;
+  applyTransform();
+}
+
+function applyTransform(){
+  canvas.style.transform = `scale(${scale})`;
+  canvas.style.left = offsetX + 'px';
+  canvas.style.top  = offsetY + 'px';
+  updateMinimap();
+}
+
+// ══════════════════════════════════════════════════════
+// DRAW
+// ══════════════════════════════════════════════════════
+function drawAll(){
+  ctx.fillStyle = "#1a1a2e";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Grid lines (only when zoom > 2)
+  if(scale > 2.5){
+    ctx.strokeStyle = "rgba(168,237,255,0.06)";
+    ctx.lineWidth = 0.5;
+    for(let x=0;x<=GRID_W;x++){
+      ctx.beginPath();ctx.moveTo(x*PIXEL_SIZE,0);ctx.lineTo(x*PIXEL_SIZE,canvas.height);ctx.stroke();
+    }
+    for(let y=0;y<=GRID_H;y++){
+      ctx.beginPath();ctx.moveTo(0,y*PIXEL_SIZE);ctx.lineTo(canvas.width,y*PIXEL_SIZE);ctx.stroke();
+    }
+  }
+
+  // Pixels
+  for(const key in pixelData){
+    const [x,y] = key.split(',').map(Number);
+    ctx.fillStyle = pixelData[key].color;
+    ctx.fillRect(x*PIXEL_SIZE, y*PIXEL_SIZE, PIXEL_SIZE, PIXEL_SIZE);
+  }
+
+  // Selected cell highlight
+  if(selectedCell){
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(
+      selectedCell.x*PIXEL_SIZE + 1,
+      selectedCell.y*PIXEL_SIZE + 1,
+      PIXEL_SIZE - 2,
+      PIXEL_SIZE - 2
+    );
+  }
+
+  drawMinimap();
+}
+
+function drawMinimap(){
+  miniCtx.fillStyle = "#1a1a2e";
+  miniCtx.fillRect(0,0,80,80);
+  const scaleX = 80/GRID_W, scaleY = 80/GRID_H;
+  for(const key in pixelData){
+    const [x,y] = key.split(',').map(Number);
+    miniCtx.fillStyle = pixelData[key].color;
+    miniCtx.fillRect(Math.floor(x*scaleX), Math.floor(y*scaleY), Math.ceil(scaleX)+1, Math.ceil(scaleY)+1);
+  }
+  updateMinimap();
+}
+
+function updateMinimap(){
+  const wrap = document.getElementById('canvas-wrap');
+  const vp = document.getElementById('minimap-vp');
+  const totalW = canvas.width * scale;
+  const totalH = canvas.height * scale;
+  const visW = wrap.clientWidth;
+  const visH = wrap.clientHeight;
+
+  const vpLeft   = Math.max(0, (-offsetX / totalW) * 80);
+  const vpTop    = Math.max(0, (-offsetY / totalH) * 80);
+  const vpWidth  = Math.min(80, (visW / totalW) * 80);
+  const vpHeight = Math.min(80, (visH / totalH) * 80);
+
+  vp.style.left   = vpLeft   + 'px';
+  vp.style.top    = vpTop    + 'px';
+  vp.style.width  = vpWidth  + 'px';
+  vp.style.height = vpHeight + 'px';
+}
+
+// ══════════════════════════════════════════════════════
+// PALETTE
+// ══════════════════════════════════════════════════════
+function buildPalette(){
+  const palette = document.getElementById('palette');
+  COLOR_GROUPS.forEach(group => {
+    const div = document.createElement('div');
+    div.className = 'color-group';
+    group.forEach(hex => {
+      const sw = document.createElement('div');
+      sw.className = 'color-swatch' + (hex === selectedColor ? ' selected' : '');
+      sw.style.background = hex;
+      sw.title = hex;
+      sw.onclick = () => selectColor(hex);
+      div.appendChild(sw);
+    });
+    palette.appendChild(div);
+  });
+}
+
+function selectColor(hex){
+  selectedColor = hex;
+  document.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('selected'));
+  document.querySelectorAll('.color-swatch').forEach(s => {
+    if(s.style.background === hexToRgb(hex) || s.title === hex) s.classList.add('selected');
+  });
+  document.getElementById('custom-color').value = hex;
+  document.getElementById('selected-box').style.background = hex;
+  document.getElementById('selected-hex').textContent = hex;
+}
+
+function hexToRgb(hex){
+  // browser converts hex → rgb for style.background
+  const el = document.createElement('div');
+  el.style.background = hex;
+  document.body.appendChild(el);
+  const rgb = getComputedStyle(el).backgroundColor;
+  document.body.removeChild(el);
+  return rgb;
+}
+
+function pickCustomColor(hex){
+  selectedColor = hex;
+  document.querySelectorAll('.color-swatch').forEach(s=>s.classList.remove('selected'));
+  document.getElementById('selected-box').style.background = hex;
+  document.getElementById('selected-hex').textContent = hex;
+}
+
+// ══════════════════════════════════════════════════════
+// TOUCH & MOUSE
+// ══════════════════════════════════════════════════════
+const wrap = document.getElementById('canvas-wrap');
+
+// Mouse
+wrap.addEventListener('mousedown', e => {
+  isDragging = true; dragMoved = false;
+  lastX = e.clientX; lastY = e.clientY;
+});
+wrap.addEventListener('mousemove', e => {
+  if(!isDragging) return;
+  const dx = e.clientX - lastX, dy = e.clientY - lastY;
+  if(Math.abs(dx) > 3 || Math.abs(dy) > 3) dragMoved = true;
+  offsetX += dx; offsetY += dy;
+  lastX = e.clientX; lastY = e.clientY;
+  clampOffset(); applyTransform();
+});
+wrap.addEventListener('mouseup', e => {
+  if(!dragMoved) handleTap(e.clientX, e.clientY);
+  isDragging = false;
+});
+
+// Touch
+let lastTouchDist = null;
+wrap.addEventListener('touchstart', e => {
+  if(e.touches.length === 1){
+    isDragging = true; dragMoved = false;
+    lastX = e.touches[0].clientX; lastY = e.touches[0].clientY;
+  } else if(e.touches.length === 2){
+    isDragging = false;
+    lastTouchDist = Math.hypot(
+      e.touches[0].clientX - e.touches[1].clientX,
+      e.touches[0].clientY - e.touches[1].clientY
+    );
+  }
+}, {passive:true});
+
+wrap.addEventListener('touchmove', e => {
+  if(e.touches.length === 1 && isDragging){
+    const dx = e.touches[0].clientX - lastX;
+    const dy = e.touches[0].clientY - lastY;
+    if(Math.abs(dx)>2||Math.abs(dy)>2) dragMoved = true;
+    offsetX += dx; offsetY += dy;
+    lastX = e.touches[0].clientX; lastY = e.touches[0].clientY;
+    clampOffset(); applyTransform();
+  } else if(e.touches.length === 2){
+    const dist = Math.hypot(
+      e.touches[0].clientX - e.touches[1].clientX,
+      e.touches[0].clientY - e.touches[1].clientY
+    );
+    if(lastTouchDist){
+      const delta = dist / lastTouchDist;
+      const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+      const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+      zoomAt(midX, midY, delta);
+    }
+    lastTouchDist = dist;
+  }
+  e.preventDefault();
+}, {passive:false});
+
+wrap.addEventListener('touchend', e => {
+  if(e.changedTouches.length === 1 && !dragMoved){
+    handleTap(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
+  }
+  lastTouchDist = null;
+  isDragging = false;
+});
+
+// Wheel zoom
+wrap.addEventListener('wheel', e => {
+  e.preventDefault();
+  const delta = e.deltaY > 0 ? 0.85 : 1.18;
+  zoomAt(e.clientX, e.clientY, delta);
+}, {passive:false});
+
+function zoomAt(cx, cy, delta){
+  const newScale = Math.min(8, Math.max(0.4, scale * delta));
+  const ratio = newScale / scale;
+  const rect = wrap.getBoundingClientRect();
+  const mx = cx - rect.left;
+  const my = cy - rect.top;
+  offsetX = mx - ratio * (mx - offsetX);
+  offsetY = my - ratio * (my - offsetY);
+  scale = newScale;
+  clampOffset(); applyTransform();
+}
+
+function clampOffset(){
+  const w = wrap.clientWidth, h = wrap.clientHeight;
+  const cw = canvas.width * scale, ch = canvas.height * scale;
+  const pad = 60;
+  offsetX = Math.min(pad, Math.max(w - cw - pad, offsetX));
+  offsetY = Math.min(pad, Math.max(h - ch - pad, offsetY));
+}
+
+function handleTap(cx, cy){
+  const rect = wrap.getBoundingClientRect();
+  const mx = cx - rect.left - offsetX;
+  const my = cy - rect.top  - offsetY;
+  const gx = Math.floor(mx / (PIXEL_SIZE * scale));
+  const gy = Math.floor(my / (PIXEL_SIZE * scale));
+  if(gx < 0 || gy < 0 || gx >= GRID_W || gy >= GRID_H) return;
+  selectCell(gx, gy);
+}
+
+function selectCell(x, y){
+  selectedCell = {x, y};
+  const key = `${x},${y}`;
+  const info = document.getElementById('pixel-info');
+  document.getElementById('pi-coords').textContent = `X:${x} Y:${y}`;
+  if(pixelData[key]){
+    const p = pixelData[key];
+    document.getElementById('pi-color').style.background = p.color;
+    document.getElementById('pi-user').textContent = p.first_name || ('@' + p.username) || 'Неизвестно';
+    const d = new Date(p.placed_at * 1000);
+    document.getElementById('pi-date').textContent = d.toLocaleDateString('ru') + ' ' + d.toLocaleTimeString('ru',{hour:'2-digit',minute:'2-digit'});
+  } else {
+    document.getElementById('pi-color').style.background = '#333';
+    document.getElementById('pi-user').textContent = 'Пусто';
+    document.getElementById('pi-date').textContent = '—';
+  }
+  info.classList.add('show');
+  drawAll();
+}
+
+// ══════════════════════════════════════════════════════
+// API
+// ══════════════════════════════════════════════════════
+async function apiFetch(path, options={}){
+  const res = await fetch(API_BASE + path, {
+    ...options,
+    headers:{"Content-Type":"application/json","X-Init-Data":INIT_DATA,...(options.headers||{})}
+  });
+  if(!res.ok){ const e=await res.json().catch(()=>({})); throw new Error(e.error||`HTTP ${res.status}`); }
+  return res.json();
+}
+
+async function loadPixels(){
+  try{
+    const data = await apiFetch("/api/pixels");
+    pixelData = {};
+    for(const p of data.pixels){
+      pixelData[`${p.x},${p.y}`] = {color:p.color, username:p.username, first_name:p.first_name, placed_at:p.placed_at};
+    }
+    drawAll();
+  }catch(e){
+    toast('❌ Ошибка загрузки пикселей','err');
+  }
+}
+
+async function loadCooldown(){
+  try{
+    const data = await apiFetch("/api/pixel/cooldown");
+    cooldownSec = data.wait_sec || 0;
+    updateCdDisplay();
+    if(cdInterval) clearInterval(cdInterval);
+    cdInterval = setInterval(()=>{
+      if(cooldownSec > 0){ cooldownSec--; updateCdDisplay(); }
+      else{ updateCdDisplay(); clearInterval(cdInterval); }
+    }, 1000);
+  }catch(e){
+    // не авторизован — покажем просто таймер 0
+    cooldownSec = 0;
+    updateCdDisplay();
+  }
+}
+
+function updateCdDisplay(){
+  const btn = document.getElementById('place-btn');
+  const cd  = document.getElementById('header-cd');
+  if(cooldownSec <= 0){
+    cd.textContent = '✅ Готово';
+    cd.className = 'header-cd';
+    btn.disabled = false;
+    btn.textContent = '🎨 ПОСТАВИТЬ ПИКСЕЛЬ';
+  } else {
+    const m = Math.floor(cooldownSec/60), s = cooldownSec%60;
+    cd.textContent = `⏳ ${m}м ${String(s).padStart(2,'0')}с`;
+    cd.className = 'header-cd waiting';
+    btn.disabled = true;
+    btn.textContent = `⏳ Ещё ${m}м ${String(s).padStart(2,'0')}с`;
+  }
+}
+
+async function placePixel(){
+  if(cooldownSec > 0){ toast('⏳ Подожди!','err'); return; }
+  if(!selectedCell){ toast('👆 Выбери ячейку на карте','err'); return; }
+
+  const {x, y} = selectedCell;
+  try{
+    const data = await apiFetch("/api/pixel", {
+      method:"POST",
+      body: JSON.stringify({x, y, color: selectedColor})
+    });
+    // Обновляем локально
+    pixelData[`${x},${y}`] = {
+      color: selectedColor,
+      username: data.username || '',
+      first_name: data.first_name || '',
+      placed_at: Math.floor(Date.now()/1000)
+    };
+    cooldownSec = PIXEL_CD;
+    updateCdDisplay();
+    if(cdInterval) clearInterval(cdInterval);
+    cdInterval = setInterval(()=>{
+      if(cooldownSec>0){cooldownSec--;updateCdDisplay();}
+      else{clearInterval(cdInterval);}
+    },1000);
+    drawAll();
+    selectCell(x, y);
+    toast('✅ Пиксель поставлен!','ok');
+    if(tg?.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
+  }catch(e){
+    toast('❌ ' + e.message,'err');
+  }
+}
+
+// ══════════════════════════════════════════════════════
+// TOAST
+// ══════════════════════════════════════════════════════
+function toast(msg, type=''){
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.className = 'toast show ' + type;
+  setTimeout(()=>el.classList.remove('show'), 2500);
+}
+
+// ══════════════════════════════════════════════════════
+// BOOT
+// ══════════════════════════════════════════════════════
+window.addEventListener('load', async () => {
+  buildPalette();
+  initCanvas();
+  drawAll();
+
+  await Promise.all([loadPixels(), loadCooldown()]);
+
+  setTimeout(()=>document.getElementById('splash').classList.add('gone'), 800);
+});
+</script>
+</body>
+</html>
