@@ -963,7 +963,7 @@ function renderGame() {
   $('game-ctl').innerHTML = g.ctl();
 }
 $('game-seg').onclick = e => { const b = e.target.closest('.seg-btn'); if (b && !busyGame) { game = b.dataset.g; renderGame(); hap(); } };
-document.querySelector('#screen-game').addEventListener('click', e => {
+document.querySelector('#screen-main').addEventListener('click', e => {
   const c = e.target.closest('.chip');
   if (c && c.dataset.b) { const bet = $('bet'), v = parseFloat(bet.value) || 0, k = c.dataset.b;
     bet.value = k === 'half' ? Math.max(1, +(v / 2).toFixed(2)) : k === 'dbl' ? Math.min(MAX_BET, v * 2) : k === 'max' ? Math.max(1, Math.min(MAX_BET, Math.floor(S.balance))) : k; return; }
